@@ -5,7 +5,7 @@ from urllib.parse import urlsplit
 from fastapi import Depends, HTTPException, Request, Response
 
 from backend.airea_api.core.config import (
-    PUBLIC_ORIGIN,
+    PUBLIC_ORIGINS,
     SESSION_COOKIE,
     SESSION_LIFETIME_SECONDS,
     SECURE_COOKIES,
@@ -35,17 +35,18 @@ def verify_same_origin(request: Request) -> None:
         )
     try:
         parsed_origin = urlsplit(origin)
-        expected_origin = PUBLIC_ORIGIN or str(request.base_url).rstrip("/")
-        parsed_expected = urlsplit(expected_origin)
-        valid_origin = (
-            parsed_origin.scheme in {"http", "https"}
-            and bool(parsed_origin.netloc)
-            and not parsed_origin.path
-            and not parsed_origin.query
-            and not parsed_origin.fragment
-            and parsed_origin.scheme.lower() == parsed_expected.scheme.lower()
-            and parsed_origin.netloc.lower() == parsed_expected.netloc.lower()
+        expected_origins = PUBLIC_ORIGINS or (
+            str(request.base_url).rstrip("/"),
         )
+        valid_origin = parsed_origin.scheme in {"http", "https"} and bool(
+            parsed_origin.netloc
+        ) and not parsed_origin.path and not parsed_origin.query and not parsed_origin.fragment
+        if valid_origin:
+            valid_origin = any(
+                parsed_origin.scheme.lower() == parsed_expected.scheme.lower()
+                and parsed_origin.netloc.lower() == parsed_expected.netloc.lower()
+                for parsed_expected in map(urlsplit, expected_origins)
+            )
     except ValueError:
         valid_origin = False
     if not valid_origin:
