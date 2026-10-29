@@ -4,7 +4,15 @@ from pathlib import Path
 from dotenv import load_dotenv
 
 
-load_dotenv(Path(__file__).resolve().parent.parent / "services" / ".env")
+_config_dir = Path(__file__).resolve().parent.parent
+_env_candidates = [
+    _config_dir / ".env",
+    _config_dir.parent / ".env",
+]
+for env_path in _env_candidates:
+    if env_path.is_file():
+        load_dotenv(env_path)
+        break
 
 PROJECT_ROOT = Path(__file__).resolve().parents[3]
 IS_PRODUCTION = os.getenv("NODE_ENV", "").lower() == "production"
@@ -17,6 +25,13 @@ if not DATABASE_PATH.is_absolute():
     DATABASE_PATH = (PROJECT_ROOT / DATABASE_PATH).resolve()
 
 PUBLIC_ORIGIN = os.getenv("AIREA_PUBLIC_ORIGIN", "").rstrip("/")
+PUBLIC_ORIGINS = tuple(
+    origin.strip().rstrip("/")
+    for origin in os.getenv("AIREA_PUBLIC_ORIGINS", "").split(",")
+    if origin.strip()
+)
+if not PUBLIC_ORIGINS and PUBLIC_ORIGIN:
+    PUBLIC_ORIGINS = (PUBLIC_ORIGIN,)
 ADMIN_SETUP_TOKEN = os.getenv("AIREA_ADMIN_SETUP_TOKEN", "")
 SECURE_COOKIES = os.getenv(
     "AIREA_SECURE_COOKIES", "true" if IS_PRODUCTION else "false"
