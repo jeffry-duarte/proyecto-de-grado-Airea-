@@ -1,6 +1,8 @@
-import sqlite3
+from collections.abc import Mapping
+from typing import Any
 
 from fastapi import APIRouter, Depends
+from sqlalchemy.engine import Connection
 
 from backend.airea_api.api.dependencies import (
     get_admin_user,
@@ -25,7 +27,7 @@ router = APIRouter(prefix="/api/admin", tags=["administration"])
 )
 def create_invite(
     payload: AdminInviteRequest,
-    _admin: sqlite3.Row = Depends(get_admin_user),
-    connection: sqlite3.Connection = Depends(get_database),
+    _admin: Mapping[str, Any] = Depends(get_admin_user),
+    connection: Connection = Depends(get_database),
 ) -> dict:
     return create_admin_invite(connection, payload.email)

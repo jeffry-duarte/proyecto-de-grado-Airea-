@@ -7,17 +7,21 @@ from fastapi.exceptions import RequestValidationError
 from fastapi.responses import FileResponse, JSONResponse
 
 from backend.airea_api.api.routes import admin, air_quality, auth, health
-from backend.airea_api.core.config import DATABASE_PATH, FRONTEND_DIST, IS_PRODUCTION
+from backend.airea_api.core.config import FRONTEND_DIST, IS_PRODUCTION
 from backend.airea_api.core.request_size_limit import RequestSizeLimitMiddleware
-from backend.airea_api.db.database import initialize_database
+from backend.airea_api.db.database import create_database_engine, initialize_database
 from backend.airea_api.services.errors import ServiceError
 
 
 @asynccontextmanager
 async def lifespan(application: FastAPI):
-    application.state.database_path = DATABASE_PATH
-    initialize_database()
-    yield
+    engine = create_database_engine()
+    try:
+        initialize_database(engine)
+        application.state.database_engine = engine
+        yield
+    finally:
+        engine.dispose()
 
 
 app = FastAPI(
