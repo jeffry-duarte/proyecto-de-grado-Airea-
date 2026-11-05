@@ -24,5 +24,30 @@ CREATE TABLE IF NOT EXISTS admin_invites (
     expires_at BIGINT NOT NULL
 );
 
+CREATE TABLE IF NOT EXISTS site_notices (
+    id TEXT PRIMARY KEY,
+    title TEXT NOT NULL,
+    body TEXT NOT NULL,
+    severity TEXT NOT NULL CHECK (severity IN ('info', 'warning', 'critical')),
+    published BOOLEAN NOT NULL DEFAULT FALSE,
+    created_at TIMESTAMP WITH TIME ZONE NOT NULL,
+    updated_at TIMESTAMP WITH TIME ZONE NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS station_overrides (
+    station_id TEXT PRIMARY KEY,
+    name TEXT NOT NULL,
+    zone TEXT NOT NULL,
+    active BOOLEAN NOT NULL DEFAULT TRUE,
+    updated_at TIMESTAMP WITH TIME ZONE NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS site_settings (
+    setting_key TEXT PRIMARY KEY,
+    setting_value TEXT NOT NULL,
+    updated_at TIMESTAMP WITH TIME ZONE NOT NULL
+);
+
 CREATE INDEX IF NOT EXISTS sessions_expiry_idx ON sessions(expires_at);
 CREATE INDEX IF NOT EXISTS admin_invites_expiry_idx ON admin_invites(expires_at);
+CREATE INDEX IF NOT EXISTS site_notices_published_idx ON site_notices(published, updated_at);
