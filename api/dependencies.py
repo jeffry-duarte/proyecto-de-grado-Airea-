@@ -1,11 +1,13 @@
-import sqlite3
 import time
+from collections.abc import Mapping
+from typing import Any
 from urllib.parse import urlsplit
 
 from fastapi import Depends, HTTPException, Request, Response
+from sqlalchemy.engine import Connection
 
 from backend.airea_api.core.config import (
-    PUBLIC_ORIGIN,
+    PUBLIC_ORIGINS,
     SESSION_COOKIE,
     SESSION_LIFETIME_SECONDS,
     SECURE_COOKIES,
@@ -16,8 +18,8 @@ from backend.airea_api.core.security import hash_token
 
 
 def get_database(
-    connection: sqlite3.Connection = Depends(database_dependency),
-) -> sqlite3.Connection:
+    connection: Connection = Depends(database_dependency),
+) -> Connection:
     return connection
 
 
@@ -35,17 +37,18 @@ def verify_same_origin(request: Request) -> None:
         )
     try:
         parsed_origin = urlsplit(origin)
-        expected_origin = PUBLIC_ORIGIN or str(request.base_url).rstrip("/")
-        parsed_expected = urlsplit(expected_origin)
-        valid_origin = (
-            parsed_origin.scheme in {"http", "https"}
-            and bool(parsed_origin.netloc)
-            and not parsed_origin.path
-            and not parsed_origin.query
-            and not parsed_origin.fragment
-            and parsed_origin.scheme.lower() == parsed_expected.scheme.lower()
-            and parsed_origin.netloc.lower() == parsed_expected.netloc.lower()
+        expected_origins = PUBLIC_ORIGINS or (
+            str(request.base_url).rstrip("/"),
         )
+        valid_origin = parsed_origin.scheme in {"http", "https"} and bool(
+            parsed_origin.netloc
+        ) and not parsed_origin.path and not parsed_origin.query and not parsed_origin.fragment
+        if valid_origin:
+            valid_origin = any(
+                parsed_origin.scheme.lower() == parsed_expected.scheme.lower()
+                and parsed_origin.netloc.lower() == parsed_expected.netloc.lower()
+                for parsed_expected in map(urlsplit, expected_origins)
+            )
     except ValueError:
         valid_origin = False
     if not valid_origin:
@@ -77,8 +80,8 @@ def clear_session_cookie(response: Response) -> None:
 def get_current_user(
     request: Request,
     response: Response,
-    connection: sqlite3.Connection = Depends(get_database),
-) -> sqlite3.Row:
+    connection: Connection = Depends(get_database),
+) -> Mapping[str, Any]:
     token = request.cookies.get(SESSION_COOKIE)
     if not token:
         raise HTTPException(status_code=401, detail="Inicia sesión para continuar.")
@@ -96,8 +99,8 @@ def get_current_user(
 
 
 def get_admin_user(
-    user: sqlite3.Row = Depends(get_current_user),
-) -> sqlite3.Row:
+    user: Mapping[str, Any] = Depends(get_current_user),
+) -> Mapping[str, Any]:
     if user["role"] != "admin":
         raise HTTPException(
             status_code=403,
