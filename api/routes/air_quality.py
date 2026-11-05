@@ -75,3 +75,47 @@ async def get_air_quality(
             status_code=502,
             detail="La fuente de calidad del aire no está disponible.",
         ) from error
+
+
+@router.get(
+    "/air-quality/forecast",
+    dependencies=[Depends(rate_limit(30, 60))],
+)
+async def get_air_quality_forecast(
+    latitude: str = Query(),
+    longitude: str = Query(),
+) -> Any:
+    latitudes = validate_coordinates(latitude, -90, 90)
+    longitudes = validate_coordinates(longitude, -180, 180)
+    if len(latitudes) != 1 or len(longitudes) != 1:
+        raise HTTPException(status_code=400, detail="Ubicación no válida.")
+
+    params = {
+        "latitude": latitude,
+        "longitude": longitude,
+        "hourly": "pm2_5,us_aqi",
+        "forecast_days": 5,
+        "timezone": "America/Bogota",
+    }
+    try:
+        async with httpx.AsyncClient(timeout=10) as client:
+            upstream = await client.get(AIR_QUALITY_API, params=params)
+    except httpx.HTTPError as error:
+        logger.warning("El pronóstico Open-Meteo no respondió: %s", error)
+        raise HTTPException(
+            status_code=502,
+            detail="El pronóstico de calidad del aire no está disponible.",
+        ) from error
+    if not upstream.is_success:
+        raise HTTPException(
+            status_code=502,
+            detail="El pronóstico de calidad del aire no está disponible.",
+        )
+    try:
+        return upstream.json()
+    except ValueError as error:
+        logger.warning("Open-Meteo devolvió un pronóstico JSON no válido.")
+        raise HTTPException(
+            status_code=502,
+            detail="El pronóstico de calidad del aire no está disponible.",
+        ) from error

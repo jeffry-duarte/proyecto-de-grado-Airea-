@@ -23,6 +23,8 @@ DATABASE_PATH = Path(
 ).expanduser()
 if not DATABASE_PATH.is_absolute():
     DATABASE_PATH = (PROJECT_ROOT / DATABASE_PATH).resolve()
+SUPABASE_DATABASE_URL = os.getenv("SUPABASE_DATABASE_URL", "").strip()
+TEST_DATABASE_URL = os.getenv("AIREA_TEST_DATABASE_URL", "").strip()
 
 PUBLIC_ORIGIN = os.getenv("AIREA_PUBLIC_ORIGIN", "").rstrip("/")
 PUBLIC_ORIGINS = tuple(

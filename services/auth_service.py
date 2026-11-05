@@ -1,6 +1,10 @@
 import re
-import sqlite3
 import time
+from collections.abc import Mapping
+from typing import Any
+
+from sqlalchemy.engine import Connection, Transaction
+from sqlalchemy.exc import IntegrityError
 
 from backend.airea_api.core.config import (
     ADMIN_SETUP_TOKEN,
@@ -24,7 +28,7 @@ from backend.airea_api.schemas.auth import (
 from backend.airea_api.services.errors import ServiceError
 
 
-def serialize_user(row: sqlite3.Row) -> dict[str, str | bool]:
+def serialize_user(row: Mapping[str, Any]) -> dict[str, str | bool]:
     return {
         "id": row["id"],
         "name": row["name"],
@@ -61,8 +65,14 @@ def _normalize_registration(payload: RegisterRequest) -> dict:
     }
 
 
+def _transaction(connection: Connection) -> Transaction:
+    if connection.in_transaction():
+        return connection.begin_nested()
+    return connection.begin()
+
+
 def register(
-    connection: sqlite3.Connection, payload: RegisterRequest
+    connection: Connection, payload: RegisterRequest
 ) -> tuple[dict[str, str | bool], str]:
     fields = _normalize_registration(payload)
     invite_code = (payload.inviteCode or "").strip()
@@ -72,39 +82,40 @@ def register(
     invite_hash = hash_token(invite_code) if invite_code else None
 
     try:
-        connection.execute("BEGIN IMMEDIATE")
-        invite = invitations.find_valid_invite(connection, invite_hash) if invite_hash else None
-        if invite_hash and (
-            not invite or invite["email"].lower() != fields["email"]
-        ):
-            raise ServiceError(403, "La invitación no es válida para este correo o ya venció.")
-        user_id = users.create_user(
-            connection,
-            **fields,
-            password_salt=password_salt,
-            password_hash=password_hash,
-            role="admin" if invite else "citizen",
-        )
-        if invite_hash:
-            invitations.delete_invite(connection, invite_hash)
-        token = new_session_token()
-        sessions.create_session(connection, hash_token(token), user_id)
-        row = users.find_by_id(connection, user_id)
-        connection.commit()
-    except sqlite3.IntegrityError as error:
-        connection.rollback()
-        if "users.email" in str(error).lower() or "unique" in str(error).lower():
+        with _transaction(connection):
+            invite = (
+                invitations.find_valid_invite(connection, invite_hash)
+                if invite_hash
+                else None
+            )
+            if invite_hash and (
+                not invite or invite["email"].lower() != fields["email"]
+            ):
+                raise ServiceError(
+                    403, "La invitación no es válida para este correo o ya venció."
+                )
+            user_id = users.create_user(
+                connection,
+                **fields,
+                password_salt=password_salt,
+                password_hash=password_hash,
+                role="admin" if invite else "citizen",
+            )
+            if invite_hash:
+                invitations.delete_invite(connection, invite_hash)
+            token = new_session_token()
+            sessions.create_session(connection, hash_token(token), user_id)
+            row = users.find_by_id(connection, user_id)
+    except IntegrityError as error:
+        if _is_duplicate_email_error(error):
             raise ServiceError(409, "Ya existe una cuenta con ese correo.") from error
-        raise
-    except Exception:
-        connection.rollback()
         raise
 
     return serialize_user(row), token
 
 
 def bootstrap_admin(
-    connection: sqlite3.Connection, payload: BootstrapAdminRequest
+    connection: Connection, payload: BootstrapAdminRequest
 ) -> tuple[dict[str, str | bool], str]:
     if not ADMIN_SETUP_TOKEN:
         raise ServiceError(
@@ -116,33 +127,30 @@ def bootstrap_admin(
     fields = _normalize_registration(payload)
     password_salt, password_hash = hash_password(payload.password)
     try:
-        connection.execute("BEGIN IMMEDIATE")
-        if users.has_admin(connection):
-            raise ServiceError(409, "El administrador inicial ya fue configurado.")
-        user_id = users.create_user(
-            connection,
-            **fields,
-            password_salt=password_salt,
-            password_hash=password_hash,
-            role="admin",
-        )
-        token = new_session_token()
-        sessions.create_session(connection, hash_token(token), user_id)
-        row = users.find_by_id(connection, user_id)
-        connection.commit()
-    except sqlite3.IntegrityError as error:
-        connection.rollback()
-        if "unique" in str(error).lower():
+        with _transaction(connection):
+            if users.has_admin(connection):
+                raise ServiceError(
+                    409, "El administrador inicial ya fue configurado."
+                )
+            user_id = users.create_user(
+                connection,
+                **fields,
+                password_salt=password_salt,
+                password_hash=password_hash,
+                role="admin",
+            )
+            token = new_session_token()
+            sessions.create_session(connection, hash_token(token), user_id)
+            row = users.find_by_id(connection, user_id)
+    except IntegrityError as error:
+        if _is_duplicate_email_error(error):
             raise ServiceError(409, "Ya existe una cuenta con ese correo.") from error
-        raise
-    except Exception:
-        connection.rollback()
         raise
     return serialize_user(row), token
 
 
 def login(
-    connection: sqlite3.Connection, email: str, password: str
+    connection: Connection, email: str, password: str
 ) -> tuple[dict[str, str | bool], str]:
     normalized_email = email.strip().lower()
     if not re.fullmatch(EMAIL_PATTERN, normalized_email) or len(password) > 256:
@@ -153,13 +161,13 @@ def login(
     ):
         raise ServiceError(401, "Correo o contraseña incorrectos.")
     token = new_session_token()
-    with connection:
+    with _transaction(connection):
         sessions.create_session(connection, hash_token(token), row["id"])
     return serialize_user(row), token
 
 
 def restore_session(
-    connection: sqlite3.Connection, token: str | None
+    connection: Connection, token: str | None
 ) -> dict[str, str | bool] | None:
     if not token:
         return None
@@ -170,7 +178,7 @@ def restore_session(
 
 
 def update_profile(
-    connection: sqlite3.Connection, user_id: str, payload: ProfileUpdateRequest
+    connection: Connection, user_id: str, payload: ProfileUpdateRequest
 ) -> dict[str, str | bool]:
     locality = payload.locality.strip()
     station_id = payload.favoriteStationId.strip()
@@ -182,7 +190,7 @@ def update_profile(
         or payload.healthProfile not in ALLOWED_HEALTH_PROFILES
     ):
         raise ServiceError(400, "Revisa los datos del perfil.")
-    with connection:
+    with _transaction(connection):
         users.update_profile(
             connection,
             user_id=user_id,
@@ -195,13 +203,13 @@ def update_profile(
     return serialize_user(row)
 
 
-def logout(connection: sqlite3.Connection, token: str | None) -> None:
+def logout(connection: Connection, token: str | None) -> None:
     if token:
-        with connection:
+        with _transaction(connection):
             sessions.delete_session(connection, hash_token(token))
 
 
-def create_admin_invite(connection: sqlite3.Connection, email: str) -> dict[str, str | int]:
+def create_admin_invite(connection: Connection, email: str) -> dict[str, str | int]:
     normalized_email = email.strip().lower()
     if not re.fullmatch(EMAIL_PATTERN, normalized_email) or len(normalized_email) > 254:
         raise ServiceError(400, "Escribe un correo electrónico válido.")
@@ -209,7 +217,7 @@ def create_admin_invite(connection: sqlite3.Connection, email: str) -> dict[str,
         raise ServiceError(409, "Ya existe una cuenta con ese correo.")
     invite_code = new_admin_invite_token()
     expires_at = int((time.time() + 7 * 24 * 60 * 60) * 1000)
-    with connection:
+    with _transaction(connection):
         invitations.create_invite(
             connection, hash_token(invite_code), normalized_email, expires_at
         )
@@ -218,3 +226,13 @@ def create_admin_invite(connection: sqlite3.Connection, email: str) -> dict[str,
         "email": normalized_email,
         "expiresAt": expires_at,
     }
+
+
+def _is_duplicate_email_error(error: IntegrityError) -> bool:
+    original = error.orig
+    constraint_name = getattr(getattr(original, "diag", None), "constraint_name", "")
+    return (
+        constraint_name == "users_email_key"
+        or "users.email" in str(original).lower()
+        or "users_email_key" in str(original).lower()
+    )
