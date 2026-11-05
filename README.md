@@ -52,6 +52,4 @@ Copy-Item backend/airea_api/.env.example backend/airea_api/.env
 python -m pip install -r backend/airea_api/requirements.txt
 python -m uvicorn backend.airea_api.main:app --reload
 ```
-``` 
-Hola mundo
-```
+# Hola mundo
