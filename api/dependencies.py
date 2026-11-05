@@ -1,8 +1,10 @@
-import sqlite3
 import time
+from collections.abc import Mapping
+from typing import Any
 from urllib.parse import urlsplit
 
 from fastapi import Depends, HTTPException, Request, Response
+from sqlalchemy.engine import Connection
 
 from backend.airea_api.core.config import (
     PUBLIC_ORIGINS,
@@ -16,8 +18,8 @@ from backend.airea_api.core.security import hash_token
 
 
 def get_database(
-    connection: sqlite3.Connection = Depends(database_dependency),
-) -> sqlite3.Connection:
+    connection: Connection = Depends(database_dependency),
+) -> Connection:
     return connection
 
 
@@ -78,8 +80,8 @@ def clear_session_cookie(response: Response) -> None:
 def get_current_user(
     request: Request,
     response: Response,
-    connection: sqlite3.Connection = Depends(get_database),
-) -> sqlite3.Row:
+    connection: Connection = Depends(get_database),
+) -> Mapping[str, Any]:
     token = request.cookies.get(SESSION_COOKIE)
     if not token:
         raise HTTPException(status_code=401, detail="Inicia sesión para continuar.")
@@ -97,8 +99,8 @@ def get_current_user(
 
 
 def get_admin_user(
-    user: sqlite3.Row = Depends(get_current_user),
-) -> sqlite3.Row:
+    user: Mapping[str, Any] = Depends(get_current_user),
+) -> Mapping[str, Any]:
     if user["role"] != "admin":
         raise HTTPException(
             status_code=403,
