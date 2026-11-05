@@ -1,32 +1,41 @@
-# AIREA API
+# Proyecto de grado AIREA
 
-FastAPI backend for the AIREA air-quality website. The frontend keeps using the existing `/api` endpoints; user accounts, profiles, sessions, and administrator invitations are stored in Supabase Postgres.
+## Integrantes
 
-## Supabase configuration
+- Jeffry Duarte
+- Maria Paula Padilla
+- Luna Hernandez
+- Duvan Rodriguez
+- Valentina (colaboradora)
 
-1. Create a Supabase project and copy its PostgreSQL connection string from **Project Settings > Database**. Use SSL.
-2. Copy `.env.example` to `.env` beside this README and set `SUPABASE_DATABASE_URL`. Never put the database password in frontend variables, commit it, or share it in chat.
-3. Start the API. On startup it creates the required tables and enables row-level security without adding public access policies. The API connects server-side using the secret database URL.
+## Descripcion
 
-`SUPABASE_DATABASE_URL` is required in both development and production; the API does not silently fall back to SQLite. SQLite is retained only as a source for the one-time data migration and as an explicit test database (`AIREA_TEST_MODE=1` with `AIREA_TEST_DATABASE_URL`).
+API FastAPI del sitio web AIREA para consulta de calidad del aire. La interfaz mantiene los endpoints `/api`; las cuentas, perfiles, sesiones e invitaciones se guardan en Supabase Postgres.
 
-## Preserve existing SQLite data
+## Configurar Supabase
 
-Before switching a deployment that contains existing accounts, back up the SQLite file, copy `.env.example` to `.env`, set `SUPABASE_DATABASE_URL` there, and run this from the workspace root:
+1. Crea un proyecto de Supabase y copia la cadena PostgreSQL desde **Project Settings > Database**.
+2. Copia `.env.example` como `.env` junto a este README y configura `SUPABASE_DATABASE_URL`. No pongas la contrasena de la base en variables `VITE_`, no la subas a Git ni la compartas por chat.
+3. Instala dependencias e inicia la API. Al arrancar, crea las tablas necesarias y activa Row Level Security sin politicas de acceso publico. La conexion a la base ocurre solo en el backend.
+
+`SUPABASE_DATABASE_URL` es obligatoria tanto en desarrollo como en produccion; el backend no vuelve silenciosamente a SQLite. SQLite queda disponible solo para la migracion unica de datos y pruebas explicitamente habilitadas con `AIREA_TEST_MODE=1` y `AIREA_TEST_DATABASE_URL`.
+
+## Migrar datos existentes
+
+Antes de cambiar un despliegue que tenga cuentas, haz una copia de seguridad del archivo SQLite. Configura `SUPABASE_DATABASE_URL` en el `.env` ignorado por Git y ejecuta desde la raiz del workspace:
 
 ```powershell
 python -m backend.airea_api.db.migrate_sqlite_to_supabase --source data/airea.sqlite
 ```
 
-The migration copies users (including existing password hashes), sessions, and administrator invitations; it prints record counts only. It is safe to rerun after a successful copy. Back up the SQLite file first and do not delete it until the Supabase-backed application has been verified.
+La migracion copia cuentas (incluidos sus hashes de contrasena), perfiles, sesiones e invitaciones, y solo imprime cantidades de registros. Se puede repetir despues de una migracion exitosa. No borres la copia SQLite hasta verificar el acceso a la base Supabase.
 
-## Run locally
+## Instalar y ejecutar
 
-From the workspace root, install the backend dependencies and start the API:
+Desde la raiz del workspace:
 
 ```powershell
+Copy-Item backend/airea_api/.env.example backend/airea_api/.env
 python -m pip install -r backend/airea_api/requirements.txt
 python -m uvicorn backend.airea_api.main:app --reload
 ```
-
-When running locally with Supabase, set `SUPABASE_DATABASE_URL` in the backend `.env`. To use the local SQLite development database instead, leave that variable empty.
