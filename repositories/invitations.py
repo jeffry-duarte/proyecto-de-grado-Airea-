@@ -43,6 +43,26 @@ def delete_invite(connection: Connection, token_hash: str) -> None:
     )
 
 
+def list_pending_invites(connection: Connection) -> list[RowMapping]:
+    return list(
+        connection.execute(
+            text("""
+                SELECT email, expires_at FROM admin_invites
+                WHERE expires_at > :now_ms
+                ORDER BY expires_at
+            """),
+            {"now_ms": int(time.time() * 1000)},
+        ).mappings()
+    )
+
+
+def delete_invites_for_email(connection: Connection, email: str) -> None:
+    connection.execute(
+        text("DELETE FROM admin_invites WHERE email = :email"),
+        {"email": email},
+    )
+
+
 def email_has_account(connection: Connection, email: str) -> bool:
     return (
         connection.execute(

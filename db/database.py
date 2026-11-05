@@ -95,7 +95,14 @@ def initialize_database(engine: Engine) -> None:
                 if statement.strip():
                     connection.exec_driver_sql(statement)
             if engine.dialect.name == "postgresql":
-                for table in ("users", "sessions", "admin_invites"):
+                for table in (
+                    "users",
+                    "sessions",
+                    "admin_invites",
+                    "site_notices",
+                    "station_overrides",
+                    "site_settings",
+                ):
                     connection.exec_driver_sql(
                         f"ALTER TABLE {table} ENABLE ROW LEVEL SECURITY"
                     )

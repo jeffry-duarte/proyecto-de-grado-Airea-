@@ -106,3 +106,50 @@ def has_admin(connection: Connection) -> bool:
         ).fetchone()
         is not None
     )
+
+
+def list_for_admin(connection: Connection) -> list[RowMapping]:
+    return list(
+        connection.execute(
+            text("""
+                SELECT id, name, email, locality, favorite_station_id,
+                    health_profile, notifications_enabled, role, created_at
+                FROM users
+                ORDER BY created_at DESC
+            """)
+        ).mappings()
+    )
+
+
+def update_for_admin(
+    connection: Connection,
+    *,
+    user_id: str,
+    name: str,
+    locality: str,
+    favorite_station_id: str,
+    health_profile: str,
+    notifications_enabled: bool,
+    role: str,
+) -> RowMapping | None:
+    connection.execute(
+        text("""
+            UPDATE users
+            SET name = :name, locality = :locality,
+                favorite_station_id = :favorite_station_id,
+                health_profile = :health_profile,
+                notifications_enabled = :notifications_enabled,
+                role = :role
+            WHERE id = :user_id
+        """),
+        {
+            "user_id": user_id,
+            "name": name,
+            "locality": locality,
+            "favorite_station_id": favorite_station_id,
+            "health_profile": health_profile,
+            "notifications_enabled": notifications_enabled,
+            "role": role,
+        },
+    )
+    return find_by_id(connection, user_id)

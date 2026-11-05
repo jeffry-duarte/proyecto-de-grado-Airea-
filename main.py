@@ -6,7 +6,7 @@ from fastapi import FastAPI, HTTPException, Request
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import FileResponse, JSONResponse
 
-from backend.airea_api.api.routes import admin, air_quality, auth, health
+from backend.airea_api.api.routes import admin, air_quality, auth, health, site
 from backend.airea_api.core.config import FRONTEND_DIST, IS_PRODUCTION
 from backend.airea_api.core.request_size_limit import RequestSizeLimitMiddleware
 from backend.airea_api.db.database import create_database_engine, initialize_database
@@ -102,6 +102,7 @@ app.include_router(auth.router)
 app.include_router(admin.router)
 app.include_router(air_quality.router)
 app.include_router(health.router)
+app.include_router(site.router)
 
 
 def api_not_found() -> JSONResponse:
