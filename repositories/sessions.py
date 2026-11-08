@@ -1,6 +1,6 @@
 import time
 
-from backend.airea_api.core.config import SESSION_LIFETIME_SECONDS
+from core.config import SESSION_LIFETIME_SECONDS
 from sqlalchemy import text
 from sqlalchemy.engine import Connection
 

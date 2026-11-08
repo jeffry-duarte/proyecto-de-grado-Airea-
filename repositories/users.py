@@ -8,13 +8,29 @@ from sqlalchemy.engine.row import RowMapping
 
 def find_by_email(connection: Connection, email: str) -> RowMapping | None:
     return connection.execute(
-        text("SELECT * FROM users WHERE email = :email"), {"email": email}
+        text("""
+            SELECT users.id, users.name, users.email, users.password_salt,
+                users.password_hash, users.password_scheme, users.locality,
+                users.favorite_station_id, users.health_profile,
+                users.notifications_enabled, roles.name AS role, users.created_at
+            FROM users JOIN roles ON roles.id = users.role_id
+            WHERE users.email = :email
+        """),
+        {"email": email},
     ).mappings().first()
 
 
 def find_by_id(connection: Connection, user_id: str) -> RowMapping | None:
     return connection.execute(
-        text("SELECT * FROM users WHERE id = :user_id"), {"user_id": user_id}
+        text("""
+            SELECT users.id, users.name, users.email, users.password_salt,
+                users.password_hash, users.password_scheme, users.locality,
+                users.favorite_station_id, users.health_profile,
+                users.notifications_enabled, roles.name AS role, users.created_at
+            FROM users JOIN roles ON roles.id = users.role_id
+            WHERE users.id = :user_id
+        """),
+        {"user_id": user_id},
     ).mappings().first()
 
 
@@ -23,8 +39,13 @@ def find_by_session_token(
 ) -> RowMapping | None:
     return connection.execute(
         text("""
-        SELECT users.* FROM sessions
+        SELECT users.id, users.name, users.email, users.password_salt,
+            users.password_hash, users.password_scheme, users.locality,
+            users.favorite_station_id, users.health_profile,
+            users.notifications_enabled, roles.name AS role, users.created_at
+        FROM sessions
         JOIN users ON users.id = sessions.user_id
+        JOIN roles ON roles.id = users.role_id
         WHERE sessions.token_hash = :token_hash AND sessions.expires_at > :now_ms
         """),
         {"token_hash": token_hash, "now_ms": now_ms},
@@ -38,6 +59,7 @@ def create_user(
     email: str,
     password_salt: str,
     password_hash: str,
+    password_scheme: str,
     locality: str,
     favorite_station_id: str,
     health_profile: str,
@@ -48,12 +70,13 @@ def create_user(
     connection.execute(
         text("""
         INSERT INTO users (
-            id, name, email, password_salt, password_hash, locality,
-            favorite_station_id, health_profile, notifications_enabled, role, created_at
+            id, name, email, password_salt, password_hash, password_scheme,
+            locality, favorite_station_id, health_profile, notifications_enabled,
+            role, role_id, created_at
         ) VALUES (
-            :id, :name, :email, :password_salt, :password_hash, :locality,
-            :favorite_station_id, :health_profile, :notifications_enabled,
-            :role, :created_at
+            :id, :name, :email, :password_salt, :password_hash, :password_scheme,
+            :locality, :favorite_station_id, :health_profile, :notifications_enabled,
+            :role, :role_id, :created_at
         )
         """),
         {
@@ -62,11 +85,13 @@ def create_user(
             "email": email,
             "password_salt": password_salt,
             "password_hash": password_hash,
+            "password_scheme": password_scheme,
             "locality": locality,
             "favorite_station_id": favorite_station_id,
             "health_profile": health_profile,
             "notifications_enabled": notifications_enabled,
             "role": role,
+            "role_id": role,
             "created_at": datetime.now(timezone.utc),
         },
     )
@@ -102,7 +127,11 @@ def update_profile(
 def has_admin(connection: Connection) -> bool:
     return (
         connection.execute(
-            text("SELECT 1 FROM users WHERE role = 'admin' LIMIT 1")
+            text("""
+                SELECT 1 FROM users
+                JOIN roles ON roles.id = users.role_id
+                WHERE roles.name = 'admin' LIMIT 1
+            """)
         ).fetchone()
         is not None
     )
@@ -112,10 +141,11 @@ def list_for_admin(connection: Connection) -> list[RowMapping]:
     return list(
         connection.execute(
             text("""
-                SELECT id, name, email, locality, favorite_station_id,
-                    health_profile, notifications_enabled, role, created_at
-                FROM users
-                ORDER BY created_at DESC
+                SELECT users.id, users.name, users.email, users.locality,
+                    users.favorite_station_id, users.health_profile,
+                    users.notifications_enabled, roles.name AS role, users.created_at
+                FROM users JOIN roles ON roles.id = users.role_id
+                ORDER BY users.created_at DESC
             """)
         ).mappings()
     )
@@ -139,7 +169,7 @@ def update_for_admin(
                 favorite_station_id = :favorite_station_id,
                 health_profile = :health_profile,
                 notifications_enabled = :notifications_enabled,
-                role = :role
+                role = :role, role_id = :role
             WHERE id = :user_id
         """),
         {
@@ -153,3 +183,25 @@ def update_for_admin(
         },
     )
     return find_by_id(connection, user_id)
+
+
+def update_password_hash(
+    connection: Connection,
+    *,
+    user_id: str,
+    password_hash: str,
+    password_scheme: str,
+) -> None:
+    connection.execute(
+        text("""
+            UPDATE users
+            SET password_hash = :password_hash, password_scheme = :password_scheme,
+                password_salt = ''
+            WHERE id = :user_id
+        """),
+        {
+            "password_hash": password_hash,
+            "password_scheme": password_scheme,
+            "user_id": user_id,
+        },
+    )

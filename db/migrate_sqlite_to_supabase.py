@@ -3,28 +3,31 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any
 
-from sqlalchemy import create_engine, text
+from sqlalchemy import create_engine, inspect, text
 from sqlalchemy.engine import Connection, Engine, URL
 
-from backend.airea_api.core.config import DATABASE_PATH, SUPABASE_DATABASE_URL
-from backend.airea_api.db.database import (
+from core.config import DATABASE_PATH, SUPABASE_DATABASE_URL
+from db.database import (
     create_database_engine,
     initialize_database,
 )
 
 
 TABLES = {
+    "roles": ("id", "name"),
     "users": (
         "id",
         "name",
         "email",
         "password_salt",
         "password_hash",
+        "password_scheme",
         "locality",
         "favorite_station_id",
         "health_profile",
         "notifications_enabled",
         "role",
+        "role_id",
         "created_at",
     ),
     "sessions": ("token_hash", "user_id", "expires_at"),
@@ -33,13 +36,21 @@ TABLES = {
 
 
 def _read_rows(connection: Connection, table: str) -> list[dict[str, Any]]:
-    columns = ", ".join(TABLES[table])
-    return [
+    available = {column["name"] for column in inspect(connection).get_columns(table)}
+    columns = [column for column in TABLES[table] if column in available]
+    rows = [
         dict(row)
-        for row in connection.execute(text(f"SELECT {columns} FROM {table}"))
+        for row in connection.execute(
+            text(f"SELECT {', '.join(columns)} FROM {table}")
+        )
         .mappings()
         .all()
     ]
+    if table == "users":
+        for row in rows:
+            row.setdefault("password_scheme", "scrypt")
+            row.setdefault("role_id", row.get("role") or "citizen")
+    return rows
 
 
 def _normalize_user_rows(rows: list[dict[str, Any]]) -> None:
@@ -75,12 +86,22 @@ def migrate(source_path: Path, target_engine: Engine) -> dict[str, int]:
     source_engine = create_engine(URL.create("sqlite", database=str(source_path)))
     try:
         with source_engine.connect() as source, target_engine.begin() as target:
-            copied: dict[str, int] = {}
-            for table, columns in TABLES.items():
-                rows = _read_rows(source, table)
-                if table == "users":
-                    _normalize_user_rows(rows)
-                copied[table] = _insert_rows(target, table, rows)
+            user_rows = _read_rows(source, "users")
+            _normalize_user_rows(user_rows)
+            role_names = {
+                row["role_id"] or row.get("role") or "citizen"
+                for row in user_rows
+            }
+            copied = {
+                "roles": _insert_rows(
+                    target,
+                    "roles",
+                    [{"id": name, "name": name} for name in sorted(role_names)],
+                )
+            }
+            copied["users"] = _insert_rows(target, "users", user_rows)
+            for table in ("sessions", "admin_invites"):
+                copied[table] = _insert_rows(target, table, _read_rows(source, table))
             return copied
     finally:
         source_engine.dispose()

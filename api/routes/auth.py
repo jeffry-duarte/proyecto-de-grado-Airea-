@@ -4,25 +4,26 @@ from typing import Any
 from fastapi import APIRouter, Depends, Request, Response
 from sqlalchemy.engine import Connection
 
-from backend.airea_api.api.dependencies import (
+from api.dependencies import (
     clear_session_cookie,
     get_current_user,
     get_database,
     set_session_cookie,
     verify_same_origin,
 )
-from backend.airea_api.core.config import SESSION_COOKIE
-from backend.airea_api.core.rate_limit import rate_limit
-from backend.airea_api.schemas.auth import (
+from core.config import SESSION_COOKIE
+from core.rate_limit import rate_limit
+from schemas.auth import (
     BootstrapAdminRequest,
     LoginRequest,
     ProfileUpdateRequest,
     RegisterRequest,
 )
-from backend.airea_api.services import auth_service
+from services import auth_service
 
 
 router = APIRouter(prefix="/api/auth", tags=["authentication"])
+standalone_auth_router = APIRouter(tags=["authentication"])
 auth_rate_limit = Depends(rate_limit(8, 15 * 60))
 
 
@@ -68,6 +69,10 @@ def bootstrap_admin(
 
 
 @router.post(
+    "/login",
+    dependencies=[auth_rate_limit, Depends(verify_same_origin)],
+)
+@standalone_auth_router.post(
     "/login",
     dependencies=[auth_rate_limit, Depends(verify_same_origin)],
 )

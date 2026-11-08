@@ -14,7 +14,7 @@ for env_path in _env_candidates:
         load_dotenv(env_path)
         break
 
-PROJECT_ROOT = Path(__file__).resolve().parents[3]
+PROJECT_ROOT = Path(__file__).resolve().parents[1]
 IS_PRODUCTION = os.getenv("NODE_ENV", "").lower() == "production"
 HOST = os.getenv("HOST", "0.0.0.0" if IS_PRODUCTION else "127.0.0.1")
 PORT = int(os.getenv("PORT", "3000" if IS_PRODUCTION else "8000"))
@@ -40,6 +40,7 @@ SECURE_COOKIES = os.getenv(
 ).lower() in {"1", "true", "yes", "on"}
 SESSION_COOKIE = "airea_session"
 SESSION_LIFETIME_SECONDS = 60 * 60 * 24
+JWT_SECRET = os.getenv("AIREA_JWT_SECRET", "")
 ALLOWED_HEALTH_PROFILES = {"general", "cyclist", "respiratory", "elderly"}
 EMAIL_PATTERN = r"^[^\s@]+@[^\s@]+\.[^\s@]+$"
 AIR_QUALITY_API = "https://air-quality-api.open-meteo.com/v1/air-quality"

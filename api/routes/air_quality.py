@@ -5,8 +5,8 @@ from typing import Any
 import httpx
 from fastapi import APIRouter, Depends, HTTPException, Query
 
-from backend.airea_api.core.config import AIR_QUALITY_API
-from backend.airea_api.core.rate_limit import rate_limit
+from core.config import AIR_QUALITY_API
+from core.rate_limit import rate_limit
 
 
 logger = logging.getLogger(__name__)

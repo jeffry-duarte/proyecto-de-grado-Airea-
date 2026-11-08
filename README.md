@@ -16,7 +16,8 @@ API FastAPI del sitio web AIREA para consulta de calidad del aire. La interfaz m
 
 1. Crea un proyecto de Supabase y copia la cadena PostgreSQL desde **Project Settings > Database**.
 2. Copia `.env.example` como `.env` junto a este README y configura `SUPABASE_DATABASE_URL`. No pongas la contraseña de la base en variables `VITE_`, no la subas a Git ni la compartas por chat.
-3. Instala dependencias e inicia la API. Al arrancar, crea las tablas necesarias y activa Row Level Security sin politicas de acceso publico. La conexion a la base ocurre solo en el backend.
+3. Genera un secreto JWT criptográficamente aleatorio de al menos 32 bytes y guárdalo como `AIREA_JWT_SECRET` en el `.env`. Mantén este secreto privado y estable entre reinicios.
+4. Instala dependencias e inicia la API. Al arrancar, Alembic aplica las migraciones, conserva los roles y hashes de cuentas existentes y activa Row Level Security. La conexión a la base ocurre solo en el backend.
 
 `SUPABASE_DATABASE_URL` es obligatoria tanto en desarrollo como en producción; el backend no vuelve silenciosamente a SQLite. SQLite queda disponible solo para la migración única de datos y pruebas explícitamente habilitadas con `AIREA_TEST_MODE=1` y `AIREA_TEST_DATABASE_URL`.
 
@@ -42,17 +43,38 @@ El desarrollo de este proyecto fue liderado por Jeffry-Duarte junto con el equip
 Antes de cambiar un despliegue que tenga cuentas, haz una copia de seguridad del archivo SQLite. Configura `SUPABASE_DATABASE_URL` en el `.env` ignorado por Git y ejecuta desde la raíz del workspace:
 
 ```powershell
-python -m backend.airea_api.db.migrate_sqlite_to_supabase --source data/airea.sqlite
+python -m db.migrate_sqlite_to_supabase --source data/airea.sqlite
 ```
 
-La migración copia cuentas (incluidos sus hashes de contraseña), perfiles, sesiones e invitaciones, y solo imprime cantidades de registros. Se puede repetir después de una migración exitosa. No borres la copia SQLite hasta verificar el acceso a la base Supabase.
+La migración copia cuentas (incluidos sus hashes de contraseña), perfiles, sesiones e invitaciones y conserva los roles en la tabla `roles`. Las cuentas Scrypt existentes se convierten a Bcrypt cuando inician sesión. No borres la copia SQLite hasta verificar el acceso a la base Supabase.
+
+El endpoint `/login` (también disponible en `/api/auth/login`) autentica mediante Bcrypt y entrega un JWT HS256 en una cookie `HttpOnly`. Las rutas protegidas validan la firma y la sesión revocable contra la base de datos; el rol actual determina el acceso (401/403). Al pasar de las sesiones anteriores, las personas deberán iniciar sesión de nuevo.
 
 ## Instalar y ejecutar
 
 Desde la raiz del workspace:
 
 ```powershell
-Copy-Item backend/airea_api/.env.example backend/airea_api/.env
-python -m pip install -r backend/airea_api/requirements.txt
-python -m uvicorn backend.airea_api.main:app --reload
+Copy-Item .env.example .env
+python -m pip install -r requirements.txt
+python -m uvicorn main:app --reload
+```
+
+Para aplicar las migraciones manualmente desde la raíz del repositorio:
+
+```powershell
+python -m alembic -c alembic.ini upgrade head
+```
+
+En Windows PowerShell, genera el secreto JWT y agrégalo al `.env` con:
+
+```powershell
+$rng = [Security.Cryptography.RandomNumberGenerator]::Create()
+$bytes = New-Object byte[] 32
+$rng.GetBytes($bytes)
+$secret = [Convert]::ToBase64String($bytes)
+Add-Content -Path ".env" -Value "AIREA_JWT_SECRET=$secret"
+$rng.Dispose()
+[Array]::Clear($bytes, 0, $bytes.Length)
+Remove-Variable secret, bytes, rng
 ```

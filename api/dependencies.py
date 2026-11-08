@@ -6,15 +6,15 @@ from urllib.parse import urlsplit
 from fastapi import Depends, HTTPException, Request, Response
 from sqlalchemy.engine import Connection
 
-from backend.airea_api.core.config import (
+from core.config import (
     PUBLIC_ORIGINS,
     SESSION_COOKIE,
     SESSION_LIFETIME_SECONDS,
     SECURE_COOKIES,
 )
-from backend.airea_api.db.database import database_dependency
-from backend.airea_api.repositories import users
-from backend.airea_api.core.security import hash_token
+from db.database import database_dependency
+from repositories import users
+from core.security import decode_access_token, hash_token
 
 
 def get_database(
@@ -85,10 +85,19 @@ def get_current_user(
     token = request.cookies.get(SESSION_COOKIE)
     if not token:
         raise HTTPException(status_code=401, detail="Inicia sesión para continuar.")
+    try:
+        claims = decode_access_token(token)
+    except ValueError:
+        clear_session_cookie(response)
+        raise HTTPException(
+            status_code=401,
+            detail="La sesión no es válida. Inicia sesión de nuevo.",
+            headers={"Set-Cookie": response.headers["set-cookie"]},
+        ) from None
     row = users.find_by_session_token(
         connection, hash_token(token), time.time_ns() // 1_000_000
     )
-    if not row:
+    if not row or row["id"] != claims["sub"] or row["role"] != claims["role"]:
         clear_session_cookie(response)
         raise HTTPException(
             status_code=401,

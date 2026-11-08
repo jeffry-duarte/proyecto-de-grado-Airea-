@@ -4,20 +4,20 @@ from typing import Any
 from fastapi import APIRouter, Depends
 from sqlalchemy.engine import Connection
 
-from backend.airea_api.api.dependencies import (
+from api.dependencies import (
     get_admin_user,
     get_database,
     verify_same_origin,
 )
-from backend.airea_api.core.rate_limit import rate_limit
-from backend.airea_api.schemas.admin import (
+from core.rate_limit import rate_limit
+from schemas.admin import (
     AdminUserUpdateRequest,
     AirQualityThresholdsRequest,
     NoticeRequest,
     StationOverrideRequest,
 )
-from backend.airea_api.schemas.auth import AdminInviteRequest
-from backend.airea_api.services import admin_service, auth_service
+from schemas.auth import AdminInviteRequest
+from services import admin_service, auth_service
 
 
 router = APIRouter(prefix="/api/admin", tags=["administration"])
