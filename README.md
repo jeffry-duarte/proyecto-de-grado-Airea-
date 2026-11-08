@@ -33,6 +33,10 @@ Para habilitar el panel:
 
 El panel permite consultar y editar perfiles y roles de usuario, revocar invitaciones, redactar avisos públicos, cambiar el nombre/zona/visibilidad de estaciones y ajustar umbrales de avisos. Protege la última cuenta administradora y la última estación activa. Los cambios de estaciones no modifican coordenadas ni mediciones de fuentes externas; los umbrales solo afectan las opciones informativas de alerta y no reemplazan normas sanitarias.
 
+## Herramientas y agradecimientos
+
+El desarrollo de este proyecto fue liderado por Jeffry-Duarte junto con el equipo indicado en la sección de integrantes. GitHub Copilot se utilizó como herramienta de asistencia para apoyar tareas de programación y documentación; las decisiones de diseño, revisión e integración del proyecto corresponden a sus integrantes.
+
 ## Migrar datos existentes
 
 Antes de cambiar un despliegue que tenga cuentas, haz una copia de seguridad del archivo SQLite. Configura `SUPABASE_DATABASE_URL` en el `.env` ignorado por Git y ejecuta desde la raíz del workspace:
