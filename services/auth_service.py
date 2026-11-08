@@ -6,26 +6,27 @@ from typing import Any
 from sqlalchemy.engine import Connection, Transaction
 from sqlalchemy.exc import IntegrityError
 
-from backend.airea_api.core.config import (
+from core.config import (
     ADMIN_SETUP_TOKEN,
     ALLOWED_HEALTH_PROFILES,
     EMAIL_PATTERN,
 )
-from backend.airea_api.core.security import (
+from core.security import (
     constant_time_equal,
+    create_access_token,
+    decode_access_token,
     hash_password,
     hash_token,
     new_admin_invite_token,
-    new_session_token,
     verify_password,
 )
-from backend.airea_api.repositories import invitations, sessions, users
-from backend.airea_api.schemas.auth import (
+from repositories import invitations, sessions, users
+from schemas.auth import (
     BootstrapAdminRequest,
     ProfileUpdateRequest,
     RegisterRequest,
 )
-from backend.airea_api.services.errors import ServiceError
+from services.errors import ServiceError
 
 
 def serialize_user(row: Mapping[str, Any]) -> dict[str, str | bool]:
@@ -78,7 +79,7 @@ def register(
     invite_code = (payload.inviteCode or "").strip()
     if len(invite_code) > 128:
         raise ServiceError(403, "La invitación no es válida para este correo o ya venció.")
-    password_salt, password_hash = hash_password(payload.password)
+    password_hash = hash_password(payload.password)
     invite_hash = hash_token(invite_code) if invite_code else None
 
     try:
@@ -97,13 +98,14 @@ def register(
             user_id = users.create_user(
                 connection,
                 **fields,
-                password_salt=password_salt,
+                password_salt="",
                 password_hash=password_hash,
+                password_scheme="bcrypt",
                 role="admin" if invite else "citizen",
             )
             if invite_hash:
                 invitations.delete_invite(connection, invite_hash)
-            token = new_session_token()
+            token = create_access_token(user_id, "admin" if invite else "citizen")
             sessions.create_session(connection, hash_token(token), user_id)
             row = users.find_by_id(connection, user_id)
     except IntegrityError as error:
@@ -125,7 +127,7 @@ def bootstrap_admin(
         raise ServiceError(403, "No se pudo verificar el código de configuración.")
 
     fields = _normalize_registration(payload)
-    password_salt, password_hash = hash_password(payload.password)
+    password_hash = hash_password(payload.password)
     try:
         with _transaction(connection):
             if users.has_admin(connection):
@@ -135,11 +137,12 @@ def bootstrap_admin(
             user_id = users.create_user(
                 connection,
                 **fields,
-                password_salt=password_salt,
+                password_salt="",
                 password_hash=password_hash,
+                password_scheme="bcrypt",
                 role="admin",
             )
-            token = new_session_token()
+            token = create_access_token(user_id, "admin")
             sessions.create_session(connection, hash_token(token), user_id)
             row = users.find_by_id(connection, user_id)
     except IntegrityError as error:
@@ -157,11 +160,21 @@ def login(
         raise ServiceError(400, "Correo o contraseña incorrectos.")
     row = users.find_by_email(connection, normalized_email)
     if not row or not verify_password(
-        password, row["password_salt"], row["password_hash"]
+        password,
+        row["password_scheme"],
+        row["password_salt"],
+        row["password_hash"],
     ):
         raise ServiceError(401, "Correo o contraseña incorrectos.")
-    token = new_session_token()
+    token = create_access_token(row["id"], row["role"])
     with _transaction(connection):
+        if row["password_scheme"] == "scrypt":
+            users.update_password_hash(
+                connection,
+                user_id=row["id"],
+                password_hash=hash_password(password),
+                password_scheme="bcrypt",
+            )
         sessions.create_session(connection, hash_token(token), row["id"])
     return serialize_user(row), token
 
@@ -171,9 +184,15 @@ def restore_session(
 ) -> dict[str, str | bool] | None:
     if not token:
         return None
+    try:
+        claims = decode_access_token(token)
+    except ValueError:
+        return None
     row = users.find_by_session_token(
         connection, hash_token(token), int(time.time() * 1000)
     )
+    if not row or row["id"] != claims["sub"] or row["role"] != claims["role"]:
+        return None
     return serialize_user(row) if row else None
 
 

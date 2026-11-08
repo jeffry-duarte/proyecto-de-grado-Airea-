@@ -2,7 +2,7 @@ from fastapi import APIRouter, Depends
 from sqlalchemy import text
 from sqlalchemy.engine import Connection
 
-from backend.airea_api.api.dependencies import get_database
+from api.dependencies import get_database
 
 
 router = APIRouter(prefix="/api", tags=["health"])

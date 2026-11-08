@@ -6,15 +6,17 @@ from fastapi import FastAPI, HTTPException, Request
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import FileResponse, JSONResponse
 
-from backend.airea_api.api.routes import admin, air_quality, auth, health, site
-from backend.airea_api.core.config import FRONTEND_DIST, IS_PRODUCTION
-from backend.airea_api.core.request_size_limit import RequestSizeLimitMiddleware
-from backend.airea_api.db.database import create_database_engine, initialize_database
-from backend.airea_api.services.errors import ServiceError
+from api.routes import admin, air_quality, auth, health, site
+from core.config import FRONTEND_DIST, IS_PRODUCTION
+from core.request_size_limit import RequestSizeLimitMiddleware
+from core.security import validate_jwt_secret
+from db.database import create_database_engine, initialize_database
+from services.errors import ServiceError
 
 
 @asynccontextmanager
 async def lifespan(application: FastAPI):
+    validate_jwt_secret()
     engine = create_database_engine()
     try:
         initialize_database(engine)
@@ -99,6 +101,7 @@ async def unhandled_error_handler(
 
 
 app.include_router(auth.router)
+app.include_router(auth.standalone_auth_router)
 app.include_router(admin.router)
 app.include_router(air_quality.router)
 app.include_router(health.router)

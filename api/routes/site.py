@@ -1,8 +1,8 @@
 from fastapi import APIRouter, Depends
 from sqlalchemy.engine import Connection
 
-from backend.airea_api.api.dependencies import get_database
-from backend.airea_api.services import admin_service
+from api.dependencies import get_database
+from services import admin_service
 
 
 router = APIRouter(prefix="/api/site", tags=["site configuration"])

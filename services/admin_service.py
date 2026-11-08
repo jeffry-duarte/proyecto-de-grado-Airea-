@@ -5,16 +5,16 @@ from typing import Any
 from sqlalchemy import text
 from sqlalchemy.engine import Connection
 
-from backend.airea_api.core.config import ALLOWED_HEALTH_PROFILES, EMAIL_PATTERN
-from backend.airea_api.repositories import invitations, site_admin, users
-from backend.airea_api.schemas.admin import (
+from core.config import ALLOWED_HEALTH_PROFILES, EMAIL_PATTERN
+from repositories import invitations, site_admin, users
+from schemas.admin import (
     AdminUserUpdateRequest,
     AirQualityThresholdsRequest,
     NoticeRequest,
     StationOverrideRequest,
 )
-from backend.airea_api.services import auth_service
-from backend.airea_api.services.errors import ServiceError
+from services import auth_service
+from services.errors import ServiceError
 
 
 DEFAULT_THRESHOLDS = {"moderate": 50, "sensitive": 100, "high": 150}
@@ -108,7 +108,11 @@ def update_user(
             raise ServiceError(409, "No puedes quitarte tu propio rol de administrador.")
         if target["role"] == "admin" and payload.role != "admin":
             admin_count = connection.execute(
-                text("SELECT COUNT(*) FROM users WHERE role = 'admin'")
+                text("""
+                    SELECT COUNT(*) FROM users
+                    JOIN roles ON roles.id = users.role_id
+                    WHERE roles.name = 'admin'
+                """)
             ).scalar_one()
             if admin_count <= 1:
                 raise ServiceError(

@@ -8,7 +8,8 @@ from sqlalchemy import create_engine, event
 from sqlalchemy.engine import Connection, Engine, URL
 from sqlalchemy.exc import SQLAlchemyError
 
-from backend.airea_api.core.config import (
+from db.migrations.runner import upgrade_database
+from core.config import (
     IS_PRODUCTION,
     SUPABASE_DATABASE_URL,
     TEST_DATABASE_URL,
@@ -97,6 +98,7 @@ def initialize_database(engine: Engine) -> None:
             if engine.dialect.name == "postgresql":
                 for table in (
                     "users",
+                    "roles",
                     "sessions",
                     "admin_invites",
                     "site_notices",
@@ -111,6 +113,7 @@ def initialize_database(engine: Engine) -> None:
             "No se pudo inicializar el esquema de la base de datos. Verifica "
             "SUPABASE_DATABASE_URL y los permisos de la base."
         ) from error
+    upgrade_database(engine)
 
 
 def database_dependency(request: Request) -> Iterator[Connection]:
