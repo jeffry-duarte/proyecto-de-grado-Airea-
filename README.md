@@ -36,7 +36,7 @@ El panel permite consultar y editar perfiles y roles de usuario, revocar invitac
 
 ## Herramientas y agradecimientos
 
-El desarrollo de este proyecto fue liderado por Jeffry-Duarte junto con el equipo indicado en la sección de integrantes. GitHub Copilot se utilizó como herramienta de asistencia para apoyar tareas de programación y documentación; las decisiones de diseño, revisión e integración del proyecto corresponden a sus integrantes.
+Jeffry Duarte participó en la programación y documentación del proyecto junto con el equipo indicado en la sección de integrantes. GitHub Copilot se utilizó como herramienta de asistencia para apoyar estas tareas; las decisiones de diseño, revisión e integración del proyecto corresponden a sus integrantes.
 
 ## Migrar datos existentes
 
