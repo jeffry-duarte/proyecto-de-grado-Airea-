@@ -7,7 +7,7 @@ from api.dependencies import get_database
 
 router = APIRouter(prefix="/api", tags=["health"])
 
-
+# Endpoint para verificacion de estado del servicio
 @router.get("/health")
 def health_check(
     connection: Connection = Depends(get_database),
