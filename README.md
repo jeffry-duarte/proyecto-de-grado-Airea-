@@ -78,3 +78,5 @@ $rng.Dispose()
 [Array]::Clear($bytes, 0, $bytes.Length)
 Remove-Variable secret, bytes, rng
 ```
+### Notas de desarrollo
+- Entornos virtuales probados en Python 3.14
