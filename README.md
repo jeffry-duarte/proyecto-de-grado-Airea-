@@ -80,3 +80,6 @@ Remove-Variable secret, bytes, rng
 ```
 ### Notas de desarrollo
 - Entornos virtuales probados en Python 3.14
+
+### Documentación de la API
+Una vez iniciado el servidor local con Uvicorn, puedes explorar y probar todos los endpoints disponibles desde la documentación interactiva generada automáticamente por FastAPI
